@@ -14,3 +14,4 @@ Zusammenkunft:	0002034400
 Stadt:		0006531113
 Dunkel:		0007050456
 Demo:		0006542540
+Diagnose:	0006533649

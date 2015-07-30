@@ -85,7 +85,8 @@ Servo myServo;
 #define Stadt 13
 #define Dunkel 14
 #define Demo 15
-#define Unbekannt 16
+#define Diagnostic 16
+#define Unbekannt 17
 
 
 const unsigned long ta = 10*minuten;      //Aktivierungszeit, Zeit in Phase 1
@@ -330,6 +331,9 @@ int scanForCard()
       return Dunkel;
     if(rfidUid == "0006542540")
       return Demo;
+    if(rfidUid == "0006533649")
+      return Diagnostic;
+      
   }
 }
 
