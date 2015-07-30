@@ -87,15 +87,15 @@ const unsigned long tn = 20*1000;
 const unsigned long tb = 30*1000;
 
 short Status;
-int LastKeeper;
-int NewKeeper;
-int AmbientValue;
-int LadeValue;
-int ReadyValue;
+short LastKeeper;
+short NewKeeper;
+short AmbientValue;
+short LadeValue;
+short ReadyValue;
 
-int servoValue;
+short servoValue;
 
-long activeTime;
+unsigned long activeTime;
 
 int A,L,R;
 
@@ -138,6 +138,8 @@ void setup() {
   }
 
 void loop() {
+
+  
   switch(Status)
   {
     case(activating):
