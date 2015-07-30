@@ -1,0 +1,16 @@
+Lesath: 	00 07 04 34 3d
+Antike: 	00 02 03 3c 00
+Elben:  	00 07 04 36 1a
+Komet:		00 07 05 02 46
+HDC:		00 07 0b 19 29
+Imperium:	00 06 61 21 4d
+Krone:		00 07 05 04 55
+Neutral:	00 07 04 34 3d
+Licht:		00 07 20 5d 05
+Norrelag:	00 06 61 3b 3d
+OHL:		00 07 09 2c 5a
+Pilger:		00 06 54 0c 50
+Zusammenkunft:	00 02 03 44 00
+Stadt:		00 06 53 11 13
+Dunkel:		00 07 05 04 56
+Demo: 		00 06 54 25 40
