@@ -660,6 +660,7 @@ void pulse()
 {
 
   myServo.write(servoValue);
+  delay(5);
   servoValue+=servoDirection;
   if(servoValue%180==0)
     servoDirection*=-1;
@@ -675,6 +676,11 @@ void pulse()
     break;
 
     case(active):
+      myServo.write(servoValue);
+      delay(5);
+      servoValue+=servoDirection;
+      if(servoValue%180==0)
+        servoDirection*=-1;
     switch(rgbStatus%3)
     {
       case(0):              //rot->grün
