@@ -416,10 +416,10 @@ void loop() {
     break;
 
     case(diagnostic):
-
+    pulse();
     if(scanForCard()==diagnostic)
     {
-      _status++;
+      _status=(_status+1)%5;
       newKeeper=random()%15;
       setShrine();
       delay(3000);      
