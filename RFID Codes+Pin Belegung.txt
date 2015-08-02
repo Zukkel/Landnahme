@@ -15,3 +15,23 @@ Stadt:		0006531113
 Dunkel:		0007050456
 Demo:		0006542540
 Diagnose:	0006533649
+
+
+
+
+PIN Belegungen Arduino:
+
+0: Shiftregister 12, RCLK
+1: Shiftregister 14, SER
+2: Shiftregister 11, SCK
+3: ServoLED1_PIN1
+4: ServoLED1_PIN2
+5: ServoLED2_PIN1
+6: ServoLED2_PIN2
+7: leer
+8: Serco_PIN
+9: RFID RST
+10:RFID SDA
+11:RFID MOSI
+12:RFID MISO
+13:RFID SCK
