@@ -98,8 +98,7 @@ const unsigned long tn = 1*minuten;      //Landnahmezeit, Zeit in Phase 3
 const unsigned long tb = 1*minuten;      //Blockzeit, Zeit in Phase 4
                                           //Phase 0 hat keine Zeit und kann beliebig lange gehen
 
-                                        
-
+                                       
 short _status;
 short newKeeper;
 short mode;
@@ -202,7 +201,8 @@ void loop() {
         Serial.println(millis()-activeTime);
         activeTime=millis();
         setShrine();
-        myServo.attach(8);
+        if(!myServo.attached())
+          myServo.attach(servo_PIN);
         Serial.println("wechsel zu loading");
         
       }
@@ -216,7 +216,8 @@ void loop() {
           scan=scanForCard();
           if(scan==Lesath||scan==Neutral||scan==Dunkel)
           {
-            myServo.detach();
+            if(myServo.attached())
+              myServo.detach();
             delay(3000);
             newKeeper = scan;
             _status=0;
@@ -242,7 +243,8 @@ void loop() {
         scan=scanForCard();
         if(scan==Lesath||scan==Neutral||scan==Dunkel)
         {
-          myServo.detach();
+          if(myServo.attached())
+            myServo.detach();
           delay(3000);
           newKeeper = scan;
           _status=0;
@@ -251,7 +253,8 @@ void loop() {
         }
         else if((scan!=Unbekannt)&&(scan!=Demo)&&(scan!=Diagnostic))
         {
-          myServo.detach();
+          if(myServo.attached())
+            myServo.detach();
           delay(3000);
           newKeeper=scan;
           _status++;
@@ -264,7 +267,8 @@ void loop() {
       }
       else
       {
-        myServo.detach();
+        if(myServo.attached())
+          myServo.detach();
         delay(3000);
         _status=0;
         delay(10);
@@ -458,10 +462,12 @@ void setShrine()
 
     case(blocked):
     //servo auf Neues Lager setzen
-    myServo.attach(servo_PIN);
+    if(!myServo.attached())
+      myServo.attach(servo_PIN);
     setServo();
     Serial.println("Servo_move_via_blocked");
-    myServo.detach();
+    if(myServo.attached())
+      myServo.detach();
         
     //RGB auf Rot setzen
     digitalWrite(rgb_red_PIN1, HIGH);
@@ -491,7 +497,8 @@ void setShrine()
       digitalWrite(servoLED1_PIN, LOW);
       digitalWrite(servoLED2_PIN, HIGH);
       //Servo auf SL Lager setzen
-      myServo.attach(servo_PIN);
+      if(!myServo.attached())
+        myServo.attach(servo_PIN);
       switch(newKeeper)
       {
         case(Lesath):
@@ -507,7 +514,8 @@ void setShrine()
         break;        
       }
       delay(3000);
-      myServo.detach();
+      if(myServo.attached())
+        myServo.detach();
     }
    return;     
   }
