@@ -92,10 +92,10 @@ Servo myServo;
 
 
 //die zeiten für die phasen
-const unsigned long ta = 10*minuten;      //Aktivierungszeit, Zeit in Phase 1
-const unsigned long tl = 60*minuten;      //Ladezeit, Zeit in Phase 2
-const unsigned long tn = 10*minuten;      //Landnahmezeit, Zeit in Phase 3
-const unsigned long tb = 90*minuten;      //Blockzeit, Zeit in Phase 4
+const unsigned long ta = 1*minuten;      //Aktivierungszeit, Zeit in Phase 1
+const unsigned long tl = 1*minuten;      //Ladezeit, Zeit in Phase 2
+const unsigned long tn = 1*minuten;      //Landnahmezeit, Zeit in Phase 3
+const unsigned long tb = 1*minuten;      //Blockzeit, Zeit in Phase 4
                                           //Phase 0 hat keine Zeit und kann beliebig lange gehen
 
                                         
@@ -123,6 +123,36 @@ Serial.begin(9600);
   pinMode(rgb_green_PIN1,OUTPUT);
   pinMode(rgb_green_PIN2,OUTPUT);
 
+    digitalWrite(rgb_red_PIN1, LOW);
+    digitalWrite(rgb_red_PIN2, LOW);
+    digitalWrite(rgb_green_PIN1, HIGH);
+    digitalWrite(rgb_green_PIN2, HIGH);
+    digitalWrite(rgb_blue_PIN1, HIGH);
+    digitalWrite(rgb_blue_PIN2, HIGH);
+    Serial.println("rot sollte aktiv sein");
+
+    delay(10000);
+
+    digitalWrite(rgb_red_PIN1, HIGH);
+    digitalWrite(rgb_red_PIN2, HIGH);
+    digitalWrite(rgb_green_PIN1, LOW);
+    digitalWrite(rgb_green_PIN2, LOW);
+    digitalWrite(rgb_blue_PIN1, HIGH);
+    digitalWrite(rgb_blue_PIN2, HIGH);
+    Serial.println("grün sollte aktiv sein");
+
+    delay(10000);
+    
+    digitalWrite(rgb_red_PIN1, HIGH);
+    digitalWrite(rgb_red_PIN2, HIGH);
+    digitalWrite(rgb_green_PIN1, HIGH);
+    digitalWrite(rgb_green_PIN2, HIGH);
+    digitalWrite(rgb_blue_PIN1, LOW);
+    digitalWrite(rgb_blue_PIN2, LOW);
+    Serial.println("blau sollte aktiv sein");
+
+    delay(10000);
+
   _status=Free;
   newKeeper=Neutral;
   mode = real;
@@ -148,7 +178,7 @@ void loop() {
     switch(_status)
     {
       case(activating):
-      if((micros()-activeTime)<ta)
+      if((millis()-activeTime)<ta)
       {
         if(!mfrc522.PICC_IsNewCardPresent())
         {
@@ -156,6 +186,7 @@ void loop() {
           if(failCount>25)
           {
             _status--;
+            delay(10);
           }
         }
         else
@@ -166,17 +197,21 @@ void loop() {
       else
       {
         _status++;
+        delay(10);
         failCount=0;
-        activeTime=micros();
+        Serial.println(millis()-activeTime);
+        activeTime=millis();
         setShrine();
         myServo.attach(8);
+        Serial.println("wechsel zu loading");
+        
       }
       break;
  
       case(loading):
       delay(100);
       pulse();
-        if((micros()-activeTime)<tl)
+        if((millis()-activeTime)<tl)
         {
           scan=scanForCard();
           if(scan==Lesath||scan==Neutral||scan==Dunkel)
@@ -185,21 +220,24 @@ void loop() {
             delay(3000);
             newKeeper = scan;
             _status=0;
+            delay(10);
             setShrine();  
           }
         }
         else
         {
             _status++;
-            activeTime=micros();
-            setShrine();        
+            delay(10);
+            activeTime=millis();
+            setShrine();
+            Serial.println("wechsel zu active");        
         }
 
       break;
 
       case(active):
       pulse();
-      if((micros()-activeTime)<tn)
+      if((millis()-activeTime)<tn)
       {
         scan=scanForCard();
         if(scan==Lesath||scan==Neutral||scan==Dunkel)
@@ -208,6 +246,7 @@ void loop() {
           delay(3000);
           newKeeper = scan;
           _status=0;
+          delay(10);
           setShrine();  
         }
         else if((scan!=Unbekannt)&&(scan!=Demo)&&(scan!=Diagnostic))
@@ -216,8 +255,10 @@ void loop() {
           delay(3000);
           newKeeper=scan;
           _status++;
+          delay(10);
           setShrine();
-          activeTime=micros();          
+          activeTime=millis();
+          Serial.println("wechsel zu blocked");          
         }
         
       }
@@ -226,29 +267,34 @@ void loop() {
         myServo.detach();
         delay(3000);
         _status=0;
+        delay(10);
         setShrine();
-        activeTime=micros();
+        activeTime=millis();
+        Serial.println("zurück zu free, weil keine karte vorhanden");
       }
       
       break;
 
       case(blocked):
-      if((micros()-activeTime)<tb)
+      if((millis()-activeTime)<tb)
       {
         scan=scanForCard();
         if(scan==Lesath||scan==Neutral||scan==Dunkel)
         {
           newKeeper = scan;
           _status=0;
-          activeTime=micros();
+          delay(10);
+          activeTime=millis();
           setShrine();  
         }
       }
       else
       {
         _status=0;
-        activeTime=micros();
+        delay(10);
+        activeTime=millis();
         setShrine();
+        Serial.println("wechsel zu free");
       }
       break;
 
@@ -270,9 +316,11 @@ void loop() {
         else if(scan!=Unbekannt)
         {
           _status++;
+          delay(10);
           failCount=0;
-          activeTime=micros();
+          activeTime=millis();
           setShrine();
+          Serial.println("wechsel zu activating");
         }
       
       return;
@@ -290,6 +338,7 @@ void loop() {
     if(scanForCard()==diagnostic)
     {
       _status=(_status+1)%5;
+      delay(10);
       newKeeper=random()%15;
       setShrine();
       delay(3000);      
@@ -301,9 +350,16 @@ void loop() {
   
 
 int scanForCard()
-{
-   if (!mfrc522.PICC_IsNewCardPresent())
-    return Unbekannt;                                                            //Unbekannt bedeutet das keine karte gefunden wurde = 16
+{        
+   if (!mfrc522.PICC_IsNewCardPresent()) 
+   {
+      return Unbekannt;
+   }
+   else if (!mfrc522.PICC_ReadCardSerial())
+   {
+    Serial.println("geht nicht");
+    return Unbekannt;                                                            //Unbekannt bedeutet das keine karte gefunden wurde = 17
+   }
    else
    {
     String rfidUid = "";
@@ -311,7 +367,6 @@ int scanForCard()
       rfidUid += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
       rfidUid += String(mfrc522.uid.uidByte[i], HEX);
     }
-
     if(rfidUid == "000704343d")
       return Lesath;
     if(rfidUid == "0002033c00")
@@ -334,7 +389,8 @@ int scanForCard()
       return Norrelag;
     if(rfidUid == "0007092c5a")
       return OHL;
-    if(rfidUid == "0006540c50")
+    //if(rfidUid == "0006540c50")
+    if(rfidUid == "57dd97c5")
       return Pilger;
     if(rfidUid == "0002034400")
       return Zusammenkunft;
@@ -353,6 +409,7 @@ int scanForCard()
 void setServo()
 {
   myServo.write(7.5+15*newKeeper);
+  Serial.println("Servo moved");
   delay(3000);
 }
 
@@ -361,8 +418,10 @@ void setShrine()
 
   switch(_status)
   {
+    Serial.println(_status);
     case(activating):
     //RGB auf Blau
+    Serial.println(_status);
     digitalWrite(rgb_red_PIN1, LOW);
     digitalWrite(rgb_red_PIN2, LOW);
     digitalWrite(rgb_green_PIN1, LOW);
@@ -377,8 +436,9 @@ void setShrine()
     digitalWrite(rgb_red_PIN2, HIGH);
     digitalWrite(rgb_green_PIN1, LOW);
     digitalWrite(rgb_green_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, HIGH);
-    digitalWrite(rgb_blue_PIN2, HIGH);
+    digitalWrite(rgb_blue_PIN1, LOW);
+    digitalWrite(rgb_blue_PIN2, LOW);
+    Serial.println("angeblich Lila");
     
     //servo leds an
     digitalWrite(servoLED1_PIN, HIGH);    
@@ -393,12 +453,14 @@ void setShrine()
     digitalWrite(rgb_green_PIN2, HIGH);
     digitalWrite(rgb_blue_PIN1, HIGH);
     digitalWrite(rgb_blue_PIN2, HIGH);
+    Serial.println("angeblich weiss");
     break;
 
     case(blocked):
     //servo auf Neues Lager setzen
     myServo.attach(servo_PIN);
     setServo();
+    Serial.println("Servo_move_via_blocked");
     myServo.detach();
         
     //RGB auf Rot setzen
@@ -475,4 +537,5 @@ void pulse()
   return;
 }
 }
+
 
