@@ -48,14 +48,11 @@
 
 
 //pin belegungen. kann je nach aufbau verändert werden.
-#define rgb_red_PIN1 0
-#define rgb_red_PIN2 1
-#define rgb_green_PIN1 2
-#define rgb_green_PIN2 3
-#define rgb_blue_PIN1 4
-#define rgb_blue_PIN2 5
-#define servoLED1_PIN 6
-#define servoLED2_PIN 7
+#define rgb_red_PIN 3
+#define servoLED1_PIN 4     //oben
+#define rgb_green_PIN 5
+#define rgb_blue_PIN 6
+#define servoLED2_PIN 7     //unten
 #define servo_PIN 8
 #define RST_PIN 9
 #define SS_PIN 10
@@ -98,12 +95,17 @@ const unsigned long tn = 1*minuten;      //Landnahmezeit, Zeit in Phase 3
 const unsigned long tb = 1*minuten;      //Blockzeit, Zeit in Phase 4
                                           //Phase 0 hat keine Zeit und kann beliebig lange gehen
 
-                                       
+                                        
+
 short _status;
 short newKeeper;
 short mode;
 long servoValue;
 short servoDirection;
+
+short ledValue;
+short ledDirection;
+short ledStatus;
 
 unsigned long activeTime;
 
@@ -114,49 +116,20 @@ int scan;
 void setup() {
 Serial.begin(9600);
   pinMode(servoLED1_PIN, OUTPUT);
-  pinMode(servoLED2_PIN, OUTPUT);
-  pinMode(rgb_red_PIN1,OUTPUT);
-  pinMode(rgb_red_PIN2,OUTPUT);
-  pinMode(rgb_blue_PIN1,OUTPUT);
-  pinMode(rgb_blue_PIN2,OUTPUT);
-  pinMode(rgb_green_PIN1,OUTPUT);
-  pinMode(rgb_green_PIN2,OUTPUT);
+  pinMode(servoLED2_PIN,OUTPUT);
+  pinMode(rgb_red_PIN,OUTPUT);
+  pinMode(rgb_blue_PIN,OUTPUT);
+  pinMode(rgb_green_PIN,OUTPUT);
 
-    digitalWrite(rgb_red_PIN1, LOW);
-    digitalWrite(rgb_red_PIN2, LOW);
-    digitalWrite(rgb_green_PIN1, HIGH);
-    digitalWrite(rgb_green_PIN2, HIGH);
-    digitalWrite(rgb_blue_PIN1, HIGH);
-    digitalWrite(rgb_blue_PIN2, HIGH);
-    Serial.println("rot sollte aktiv sein");
-
-    delay(10000);
-
-    digitalWrite(rgb_red_PIN1, HIGH);
-    digitalWrite(rgb_red_PIN2, HIGH);
-    digitalWrite(rgb_green_PIN1, LOW);
-    digitalWrite(rgb_green_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, HIGH);
-    digitalWrite(rgb_blue_PIN2, HIGH);
-    Serial.println("grün sollte aktiv sein");
-
-    delay(10000);
-    
-    digitalWrite(rgb_red_PIN1, HIGH);
-    digitalWrite(rgb_red_PIN2, HIGH);
-    digitalWrite(rgb_green_PIN1, HIGH);
-    digitalWrite(rgb_green_PIN2, HIGH);
-    digitalWrite(rgb_blue_PIN1, LOW);
-    digitalWrite(rgb_blue_PIN2, LOW);
-    Serial.println("blau sollte aktiv sein");
-
-    delay(10000);
 
   _status=Free;
   newKeeper=Neutral;
   mode = real;
   
   servoDirection=1;
+  ledDirection=1;
+  ledStatus=0;
+  ledValue=255;
 
   failCount=0;
 
@@ -186,6 +159,7 @@ void loop() {
           {
             _status--;
             delay(10);
+            setShrine();
           }
         }
         else
@@ -209,21 +183,10 @@ void loop() {
       break;
  
       case(loading):
-      delay(100);
       pulse();
         if((millis()-activeTime)<tl)
         {
-          scan=scanForCard();
-          if(scan==Lesath||scan==Neutral||scan==Dunkel)
-          {
-            if(myServo.attached())
-              myServo.detach();
-            delay(3000);
-            newKeeper = scan;
-            _status=0;
-            delay(10);
-            setShrine();  
-          }
+
         }
         else
         {
@@ -317,6 +280,12 @@ void loop() {
         {
           mode=diagnostic;
         }
+        else if(scan==newKeeper)
+        {
+          
+          pulse();
+
+        }
         else if(scan!=Unbekannt)
         {
           _status++;
@@ -325,6 +294,10 @@ void loop() {
           activeTime=millis();
           setShrine();
           Serial.println("wechsel zu activating");
+        }
+        else
+        {
+          digitalWrite(5,LOW);
         }
       
       return;
@@ -361,7 +334,7 @@ int scanForCard()
    }
    else if (!mfrc522.PICC_ReadCardSerial())
    {
-    Serial.println("geht nicht");
+    Serial.println(" geht nicht");
     return Unbekannt;                                                            //Unbekannt bedeutet das keine karte gefunden wurde = 17
    }
    else
@@ -371,6 +344,8 @@ int scanForCard()
       rfidUid += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
       rfidUid += String(mfrc522.uid.uidByte[i], HEX);
     }
+
+    Serial.println(rfidUid);
     if(rfidUid == "000704343d")
       return Lesath;
     if(rfidUid == "0002033c00")
@@ -381,7 +356,7 @@ int scanForCard()
       return Komet;
     if(rfidUid == "00070b1929")
       return HDC;
-    if(rfidUid == "000661214d")
+    if(rfidUid == "b3afcb02")
       return Imperium;
     if(rfidUid == "0007050455")
       return Krone;
@@ -394,7 +369,7 @@ int scanForCard()
     if(rfidUid == "0007092c5a")
       return OHL;
     //if(rfidUid == "0006540c50")
-    if(rfidUid == "57dd97c5")
+    if(rfidUid == "d5afa72c")
       return Pilger;
     if(rfidUid == "0002034400")
       return Zusammenkunft;
@@ -426,23 +401,14 @@ void setShrine()
     case(activating):
     //RGB auf Blau
     Serial.println(_status);
-    digitalWrite(rgb_red_PIN1, LOW);
-    digitalWrite(rgb_red_PIN2, LOW);
-    digitalWrite(rgb_green_PIN1, LOW);
-    digitalWrite(rgb_green_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, HIGH);
-    digitalWrite(rgb_blue_PIN2, HIGH);
+    digitalWrite(rgb_red_PIN, HIGH);
+    digitalWrite(rgb_green_PIN, HIGH);
+    digitalWrite(rgb_blue_PIN, LOW);
     break;
     
     case(loading):
-    //RGB auf Lila
-    digitalWrite(rgb_red_PIN1, HIGH);
-    digitalWrite(rgb_red_PIN2, HIGH);
-    digitalWrite(rgb_green_PIN1, LOW);
-    digitalWrite(rgb_green_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, LOW);
-    digitalWrite(rgb_blue_PIN2, LOW);
-    Serial.println("angeblich Lila");
+    digitalWrite(rgb_green_PIN, HIGH);
+    digitalWrite(rgb_blue_PIN, HIGH);
     
     //servo leds an
     digitalWrite(servoLED1_PIN, HIGH);    
@@ -450,14 +416,9 @@ void setShrine()
     break;
 
     case(active):
-    //RGB auf weiss
-    digitalWrite(rgb_red_PIN1, HIGH);
-    digitalWrite(rgb_red_PIN2, HIGH);
-    digitalWrite(rgb_green_PIN1, HIGH);
-    digitalWrite(rgb_green_PIN2, HIGH);
-    digitalWrite(rgb_blue_PIN1, HIGH);
-    digitalWrite(rgb_blue_PIN2, HIGH);
-    Serial.println("angeblich weiss");
+    digitalWrite(rgb_red_PIN, HIGH);
+    digitalWrite(rgb_green_PIN, HIGH);
+    digitalWrite(rgb_blue_PIN, HIGH);
     break;
 
     case(blocked):
@@ -465,17 +426,12 @@ void setShrine()
     if(!myServo.attached())
       myServo.attach(servo_PIN);
     setServo();
-    Serial.println("Servo_move_via_blocked");
-    if(myServo.attached())
-      myServo.detach();
+    myServo.detach();
         
     //RGB auf Rot setzen
-    digitalWrite(rgb_red_PIN1, HIGH);
-    digitalWrite(rgb_red_PIN2, HIGH);
-    digitalWrite(rgb_green_PIN1, LOW);
-    digitalWrite(rgb_green_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, LOW);
-    digitalWrite(rgb_blue_PIN2, LOW);
+    digitalWrite(rgb_red_PIN, LOW);
+    digitalWrite(rgb_green_PIN, HIGH);
+    digitalWrite(rgb_blue_PIN, HIGH);
 
     //Servo-LEDs an, SL-LEDs aus
     digitalWrite(servoLED1_PIN, HIGH);
@@ -485,12 +441,9 @@ void setShrine()
     default:
   
     //RGB auf Grün setzen
-    digitalWrite(rgb_green_PIN1, HIGH);
-    digitalWrite(rgb_green_PIN2, HIGH);
-    digitalWrite(rgb_red_PIN1, LOW);
-    digitalWrite(rgb_red_PIN2, LOW);
-    digitalWrite(rgb_blue_PIN1, LOW);
-    digitalWrite(rgb_blue_PIN2, LOW);
+    digitalWrite(rgb_green_PIN, LOW);
+    digitalWrite(rgb_red_PIN, HIGH);
+    digitalWrite(rgb_blue_PIN, HIGH);
     
     if(newKeeper==Lesath||newKeeper==Neutral||newKeeper==Dunkel)
     {
@@ -514,8 +467,7 @@ void setShrine()
         break;        
       }
       delay(3000);
-      if(myServo.attached())
-        myServo.detach();
+      myServo.detach();
     }
    return;     
   }
@@ -528,22 +480,73 @@ void pulse()
   switch(_status)
   {
     case(loading):
+    delay(30);
       myServo.write(servoValue);
       delay(5);
       servoValue+=servoDirection;
       if(servoValue%180==0)
         servoDirection*=-1;
+
+      analogWrite(3,ledValue);
+      ledValue+=ledDirection;
+      if((ledValue%255)==0)
+        ledDirection*=-1;
 
     break;
 
     case(active):
+    delay(30);
       myServo.write(servoValue);
       delay(5);
       servoValue+=servoDirection;
       if(servoValue%180==0)
         servoDirection*=-1;
-  return;
-}
+
+      switch(ledStatus)
+      {
+        case(0):
+        analogWrite(3,ledValue);
+        analogWrite(5,255-ledValue);
+        ledValue++;
+        if(ledValue>254)
+        {
+          ledValue=0;
+          ledStatus=1;
+        }
+        break;
+      
+        case(1):
+        analogWrite(6,255-ledValue);
+        analogWrite(5,ledValue);
+        ledValue++;
+        if(ledValue>254)
+        {
+          ledValue=0;
+          ledStatus=2;
+        }
+        break;
+      
+        case(2):
+        analogWrite(6,ledValue);
+        analogWrite(3,255-ledValue);
+        ledValue++;
+        if(ledValue>254)
+        {
+          ledValue=0;
+          ledStatus=0;
+      
+        }
+        break;
+      }
+
+      case(Free):
+      delay(10);
+      analogWrite(5,ledValue);
+      ledValue+=ledDirection;
+      if((ledValue%255)==0)
+        ledDirection*=-1;
+      break;
+  }
 }
 
 
