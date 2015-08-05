@@ -233,6 +233,7 @@ void loop() {
         if(myServo.attached())
           myServo.detach();
         delay(3000);
+        newKeeper=Neutral;
         _status=0;
         delay(10);
         setShrine();
@@ -381,7 +382,7 @@ int scanForCard()
       return Demo;
     if(rfidUid == "0006533649")
       return Diagnostic;
-      
+    return Unbekannt;     
   }
 }
 
@@ -439,7 +440,7 @@ void setShrine()
     break;
 
     default:
-  
+    Serial.println(newKeeper);
     //RGB auf Grün setzen
     digitalWrite(rgb_green_PIN, LOW);
     digitalWrite(rgb_red_PIN, HIGH);
