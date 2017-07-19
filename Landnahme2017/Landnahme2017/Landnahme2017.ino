@@ -32,9 +32,29 @@
 #include <MFRC522.h>
 #include <avr/wdt.h>
 
-
+ // Pinbelegungen, einfach umschreiben wenns anders gebraucht ist.
 #define RST_PIN 5
 #define SS_PIN 53
+
+#define AntikeLed 30
+#define ElbenLed 31
+#define KometLed 32
+#define HDCLed 33
+#define ImpLed 34
+#define KroneLed 35
+#define LichtLed 36
+#define NorrelagLed 37
+#define OHLLed 38
+#define PilgerLed 39
+#define ZKLed 40
+#define StadtLed 41
+#define LesathLed 42
+#define ThekiLed 43
+
+#define AmbientLed1 22
+#define AmbientLed2 23
+#define AmbientLed3 24
+#define AmbientLed4 25
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
@@ -51,30 +71,23 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 #define Zusammenkunft 10
 #define Stadt 11
 #define Lesath 12
-#define Neutral 13
-#define Dunkel 14
-#define Demo 15
-#define Diagnostic 16
-#define Unbekannt 17
-
-#define minuten 60000
+#define Theki 13
 
 #define Free 1
 #define Activated 2
 #define Blocked 3
 
-//die zeiten für die phasen
-const unsigned long tn = 1*minuten;      //Landnahmezeit, Zeit zum Einnehmen
-const unsigned long tb = 1*minuten;      //Blockzeit, Zeit nach dem Einnehmen
-
-
 short CurrentPhase;
 short CurrentOwner;
 
-unsigned long Time;
+unsigned long CurrentTime;
+unsigned long CurrentLongestTime;
+unsigned long TempTime;
+
 bool HasPrintedStatusBool;
 
 File DataFile;
+File TimeData;
 
 void setup() {
   Serial.begin(9600);
@@ -83,7 +96,27 @@ void setup() {
   digitalWrite(10,HIGH);
   pinMode(4,OUTPUT);
   digitalWrite(4,LOW);
-  Serial.println("Starting up...");
+
+  pinMode(AntikeLed,OUTPUT);
+  pinMode(ElbenLed,OUTPUT);
+  pinMode(KometLed,OUTPUT);
+  pinMode(HDCLed,OUTPUT);
+  pinMode(ImpLed,OUTPUT);
+  pinMode(KroneLed,OUTPUT);
+  pinMode(LichtLed,OUTPUT);
+  pinMode(NorrelagLed,OUTPUT);
+  pinMode(OHLLed,OUTPUT);
+  pinMode(PilgerLed,OUTPUT);
+  pinMode(ZKLed,OUTPUT);
+  pinMode(StadtLed,OUTPUT);
+  pinMode(LesathLed,OUTPUT);
+  pinMode(ThekiLed,OUTPUT);
+  
+  Serial.println("Starting up...");  
+
+  for(int i=30;i<=43;i++){
+    SetLights(i,1);
+  }
 
   CurrentPhase = 1;
   CurrentOwner = 17;
@@ -95,11 +128,14 @@ void setup() {
     Serial.println("SD Karte initialisiert");
   }
 
+  ReadDataFile();
   PrintCurrentStatus();
   HasPrintedStatusBool = false;
 
   delay (500);
   watchdogSetup();
+
+  Serial.println("Setup Done");
 }
 
 void loop() {
@@ -112,7 +148,6 @@ void loop() {
 
     case(Activated):
 
-
     break;
 
     case(Blocked):
@@ -120,31 +155,21 @@ void loop() {
 
     break;
   }
-
-
-  if(HasPrintedStatusBool==false&&millis()%60000>55000&&millis()%60000<59999)
+  if(HasPrintedStatusBool==false&&millis()%120000>195000&&millis()%120000<199999)
   {
     PrintCurrentStatus();
+    SaveMomentData();
   }
   else if(millis()%60000<55000)
   {
     HasPrintedStatusBool=false;
   }
+  delay(1000);
 }
 
 void watchdogSetup(void){
  cli();
  wdt_reset();
-/*
- WDTCSR configuration:
- WDIE = 1: Interrupt Enable
- WDE = 1 :Reset Enable
- See table for time-out variations:
- WDP3 = 0 :For 1000ms Time-out
- WDP2 = 1 :For 1000ms Time-out
- WDP1 = 1 :For 1000ms Time-out
- WDP0 = 0 :For 1000ms Time-out
-*/
 // Enter Watchdog Configuration mode:
 WDTCSR |= (1<<WDCE) | (1<<WDE);
 // Set Watchdog settings:
@@ -159,28 +184,16 @@ short CheckForCard(){
   
 }
 
-void SetNewOwner(){
-  
+void SetNewOwner(int newOwner){
+  CurrentOwner=newOwner;
 }
 
-void SaveMomentData(){
-  DataFile = SD.open("data.txt", FILE_WRITE);
-
-  if(DataFile){
-    Serial.println("Schreibe Daten");
-    PrintCurrentStatus();
-    DataFile.print("Aktuelle Zeit: ");
-    DataFile.print(millis()/1000);
-    DataFile.println(" Sekunden");
-    DataFile.close();
-    Serial.println("Done");
-  }else{
-    Serial.println("Error writing text");
+void SetLights(int ledNumber, int phase){
+  for(int i=30;i<=43;i++){
+    digitalWrite(i,LOW);
   }
-}
-
-void LoadLastMomentData(){
-  
+  digitalWrite(ledNumber,HIGH);
+  delay(500);
 }
 
 void PrintCurrentStatus(){
@@ -190,11 +203,93 @@ void PrintCurrentStatus(){
   Serial.print("Aktueller Besitzer: ");
   Serial.println(CurrentOwner);
   Serial.print("Zeit seit letztem Start: ");
-  Time = millis()/60000 + 1;
-  Serial.print(Time);
-  Serial.println(" Minuten.");
+  Serial.print(millis()/1000 + 1);
+  Serial.println(" Sekunden.");
+  Serial.print("Gesamte Laufzeit: ");
+  Serial.print(CurrentTime);
+  Serial.println(" Sekunden.");
   Serial.println();
   HasPrintedStatusBool = true;
 }
 
+ISR(WDT_vect)
+{
+  Serial.println();
+  Serial.println("Interrupt");
+  Serial.println("------------------------------------------------------------");
+}
+
+void UpdateRuntime(){
+  TimeData=SD.open("data.txt", FILE_WRITE);
+  if(TimeData){
+    Serial.println("Write TimeData");
+    TimeData.println(millis());
+  }else{
+    Serial.println("Could not write TimeData");
+  }
+  TimeData.close();
+  delay(200);  
+}
+
+void SaveMomentData(){
+  DataFile = SD.open("data.txt", FILE_WRITE);
+  if(DataFile){
+    DataFile.print('t');
+    DataFile.println(millis()/1000);
+    DataFile.print('o');
+    DataFile.println(CurrentOwner);
+    DataFile.print('p');
+    DataFile.println(CurrentPhase);
+    DataFile.close();
+  }else{
+    Serial.println("Error writing text");
+  }
+  DataFile.close();
+}
+
+void ReadDataFile(){
+  CurrentTime=(int)millis()/1000;
+  DataFile=SD.open("data.txt");
+  int currentLongestTime = 0;
+  int tempOwner;
+  int tempPhase;
+  char inputarray[1000];
+  int index=0;
+  char readChar;
+  if(DataFile){
+    while(DataFile.available()){
+      readChar=DataFile.read();
+      if(readChar!='\n'){
+        inputarray[index]=readChar;
+        index++;
+      }else{
+        
+        inputarray[index]='\0';
+        int tempTime;
+        
+
+        if(inputarray[0]=='t'){
+          tempTime=atoi(&inputarray[1]);
+          if(tempTime>=currentLongestTime){
+            currentLongestTime=(int)tempTime;
+          }else{
+            CurrentTime+=(int)currentLongestTime;
+            currentLongestTime=(int)tempTime;
+          }
+        }else
+        if(inputarray[0]=='o'){
+          tempOwner=atoi(&inputarray[1]);
+        }else
+        if(inputarray[0]=='p'){
+          tempPhase=atoi(&inputarray[1]);
+        }      
+        index=0;
+      }
+    }
+    CurrentPhase=tempPhase;
+    SetNewOwner(tempOwner);
+  }else{
+    Serial.println("Could not open data.txt");
+  }
+}
 
