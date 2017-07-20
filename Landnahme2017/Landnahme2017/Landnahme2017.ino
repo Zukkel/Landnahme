@@ -9,21 +9,17 @@
  * Released into the public domain.
  * Sample program showing how to read data from a PICC using a MFRC522 reader on the      Arduino SPI interface.
  *----------------------------------------------------------------------------- empty_skull 
- * Aggiunti pin per arduino Mega
- * add pin configuration for arduino mega
- * http://mac86project.altervista.org/
- ----------------------------------------------------------------------------- Nicola      Coppola
- * Pin layout should be as follows:
- * Signal     Pin              Pin               Pin
- *            Arduino Uno      Arduino Mega      MFRC522 board
- * ------------------------------------------------------------
- * Reset      9                5                 RST
- * SPI SS     10               53                SDA
- * SPI MOSI   11               52                MOSI
- * SPI MISO   12               51                MISO
- * SPI SCK    13               50                SCK
- *
- * The reader can be found on eBay for around 5 dollars. Search for "mf-rc522" on    ebay.com. 
+ * Typical pin layout used:
+ * -----------------------------------------------------------------------------------------
+ *             MFRC522      Arduino       Arduino   Arduino    Arduino          Arduino
+ *             Reader/PCD   Uno/101       Mega      Nano v3    Leonardo/Micro   Pro Micro
+ * Signal      Pin          Pin           Pin       Pin        Pin              Pin
+ * -----------------------------------------------------------------------------------------
+ * RST/Reset   RST          9             5         D9         RESET/ICSP-5     RST
+ * SPI SS      SDA(SS)      10            53        D10        10               10
+ * SPI MOSI    MOSI         11 / ICSP-4   51        D11        ICSP-4           16
+ * SPI MISO    MISO         12 / ICSP-1   50        D12        ICSP-1           14
+ * SPI SCK     SCK          13 / ICSP-3   52        D13        ICSP-3           15
  */
 
 
@@ -32,7 +28,7 @@
 #include <MFRC522.h>
 #include <avr/wdt.h>
 
- // Pinbelegungen, einfach umschreiben wenns anders gebraucht ist.
+ // Alle Einstellungen werden hier oben vorgenommen, nicht im Code!
 #define RST_PIN 5
 #define SS_PIN 53
 
@@ -51,12 +47,30 @@
 #define LesathLed 42
 #define ThekiLed 43
 
-#define AmbientLed1 22
-#define AmbientLed2 23
-#define AmbientLed3 24
-#define AmbientLed4 25
+#define AmbientLed 3
+
+#define AntikeId "Test"
+#define ElbenId "test2"
+#define KometId "test3"
+#define HDCId "b3df6b00"
+#define ImperiumId "94134bea"
+#define KroneId "test6"
+#define LichtId "test7"
+#define NorrelagId "d39c8900"
+#define OHLId "73836900"
+#define PilgerId "c5df9d2c"
+#define ZKId "test11"
+#define StadtId "test12"
+#define LesathId "test13"
+#define ThekiId "test14"
+
+const unsigned int TimeToBlock=60*1;
+const unsigned int Active=10*1;
+
+//Ende der Einstellungen
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
+MFRC522::MIFARE_Key key;
 
 #define Antike 0
 #define Elben 1
@@ -79,10 +93,17 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 short CurrentPhase;
 short CurrentOwner;
+short PreviousOwner;
 
 unsigned long CurrentTime;
 unsigned long CurrentLongestTime;
 unsigned long TempTime;
+unsigned long BlockTime;
+unsigned long ActivationTime;
+unsigned long failCount;
+
+unsigned long LedStatus;
+unsigned long LedIncrement;
 
 bool HasPrintedStatusBool;
 
@@ -91,6 +112,9 @@ File TimeData;
 
 void setup() {
   Serial.begin(9600);
+  SPI.begin();
+  mfrc522.PCD_Init();
+  mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
   pinMode(10,OUTPUT);
   pinMode(53,OUTPUT);
   digitalWrite(10,HIGH);
@@ -111,15 +135,42 @@ void setup() {
   pinMode(StadtLed,OUTPUT);
   pinMode(LesathLed,OUTPUT);
   pinMode(ThekiLed,OUTPUT);
-  
-  Serial.println("Starting up...");  
 
+  pinMode(AmbientLed,OUTPUT);
+  
+  
+  Serial.println("Starting up...");
+
+  digitalWrite(AmbientLed,HIGH);
+  
   for(int i=30;i<=43;i++){
-    SetLights(i,1);
+    SetLights(i);
+  } 
+
+  for(int i=0;i<2;i++){   
+  
+    for(int k=0;k<255;k++){
+      analogWrite(AmbientLed,k);
+      delay(5);
+    }
+    for(int k=255;k>0;k--){
+      analogWrite(AmbientLed,k);
+      delay(5);
+    }
   }
+  // Prepare the key (used both as key A and as key B)
+    // using FFFFFFFFFFFFh which is the default at chip delivery from the factory
+    for (byte i = 0; i < 6; i++) {
+        key.keyByte[i] = 0xFF;
+    }
 
   CurrentPhase = 1;
   CurrentOwner = 17;
+  BlockTime=0;
+  ActivationTime=0;
+  failCount=0;
+  LedStatus=1;
+  LedIncrement=1;
 
     if(!SD.begin(4)){
     Serial.println("SD Karte konnte nicht initialisiert werden.");
@@ -140,58 +191,184 @@ void setup() {
 
 void loop() {
   wdt_reset();
+  int check;
+  delay(3);
+  
   switch(CurrentPhase)
   {
     case(Free):
-
+    if(LedStatus>254||LedStatus<1){
+      LedIncrement=-LedIncrement;
+    }
+    LedStatus+=LedIncrement;
+    analogWrite(AmbientLed,LedStatus);
+    
+    check = CheckForCard();
+    if(check!=17&&check!=CurrentOwner){
+      ActivateShrine(check);
+    }
     break;
 
     case(Activated):
-
+        
+    if(LedStatus>254){
+      LedStatus=0;    
+    }
+    LedStatus+=3;
+    analogWrite(AmbientLed,LedStatus);
+    if(ActivationTime+Active>=CurrentTime+millis()/1000){
+      check=CheckForCard();
+      if(check==17){
+        failCount++;
+        if(failCount>50){
+          FreeShrine();
+          CurrentOwner=PreviousOwner;
+          SetLights(PreviousOwner);
+          failCount=0;
+        }        
+      }else{
+        failCount=0;
+      }      
+    }else{
+      while(check!=CurrentOwner){
+        check=CheckForCard();
+      }
+      BlockShrine(check);
+    }
     break;
 
     case(Blocked):
-    
-
+    check=CheckForCard();
+    if(check!=17){
+      for(int k=0;k<3;k++){      
+        for(int i=0;i<=255;i++){
+          analogWrite(AmbientLed,i);
+          delay(3);
+        }
+      }
+      analogWrite(AmbientLed,0);
+      delay(2000);
+    }
+    if(BlockTime+TimeToBlock<=CurrentTime+millis()/1000){
+      FreeShrine();
+    }
     break;
   }
-  if(HasPrintedStatusBool==false&&millis()%120000>195000&&millis()%120000<199999)
+  if(HasPrintedStatusBool==false&&millis()%120000>115000&&millis()%120000<119999)
   {
     PrintCurrentStatus();
     SaveMomentData();
   }
-  else if(millis()%60000<55000)
+  else if(millis()%120000<115000)
   {
     HasPrintedStatusBool=false;
   }
-  delay(1000);
+}
+
+void BlockShrine(int Blocker){
+  CurrentPhase=3;
+  analogWrite(AmbientLed,0);
+  Serial.println("Shrine blocked");
+  ActivationTime=0;
+  CurrentOwner=Blocker;
+  SetLights(Blocker);
+  BlockTime=CurrentTime+millis()/1000;
+  PrintCurrentStatus();
+  SaveMomentData();
+  delay(10);
+}
+
+void ActivateShrine(int Activator){
+  CurrentPhase=2;
+  Serial.println("Shrine activated");
+  analogWrite(AmbientLed,100);
+  PreviousOwner=CurrentOwner;
+  CurrentOwner=Activator;
+  SetLights(Activator);
+  ActivationTime=CurrentTime+millis()/1000;
+  PrintCurrentStatus();
+  SaveMomentData();
+  delay(10);
+}
+
+void FreeShrine(){
+  CurrentPhase=1;
+  Serial.println("Shrine freed");
+  analogWrite(AmbientLed,100);
+  ActivationTime=0;
+  BlockTime=0;
+  PrintCurrentStatus();
+  SaveMomentData();
+  delay(10);
 }
 
 void watchdogSetup(void){
- cli();
- wdt_reset();
-// Enter Watchdog Configuration mode:
-WDTCSR |= (1<<WDCE) | (1<<WDE);
-// Set Watchdog settings:
- WDTCSR = (1<<WDIE) | (1<<WDE) |
-(1<<WDP3) | (0<<WDP2) | (0<<WDP1) |
-(1<<WDP0);
-
-sei();
-}
-
-short CheckForCard(){
+  cli();
+  wdt_reset();
+  // Enter Watchdog Configuration mode:
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  // Set Watchdog settings:
+  WDTCSR = (1<<WDIE) | (1<<WDE) |
+  (1<<WDP3) | (0<<WDP2) | (0<<WDP1) |
+  (1<<WDP0);
   
+  sei();
 }
 
-void SetNewOwner(int newOwner){
-  CurrentOwner=newOwner;
+int CheckForCard(){
+  // Look for new cards
+  if ( ! mfrc522.PICC_IsNewCardPresent()){
+    return 17;
+  }
+  // Select one of the cards
+  if ( ! mfrc522.PICC_ReadCardSerial()){
+    return 17;
+  }
+  String rfidUid = "";
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    rfidUid += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
+    rfidUid += String(mfrc522.uid.uidByte[i], HEX);
+  }
+  Serial.println(rfidUid);
+  if(rfidUid==AntikeId){
+    return Antike ;
+  }else if(rfidUid==ElbenId ){
+    return Elben ;
+  }else if(rfidUid==KometId ){
+    return Komet ;
+  }else if(rfidUid==HDCId){
+    return HDC;
+  }else if(rfidUid==ImperiumId ){
+    return Imperium ;
+  }else if(rfidUid==KroneId ){
+    return Krone ;
+  }else if(rfidUid==LichtId ){
+    return Licht ;
+  }else if(rfidUid==NorrelagId ){
+    return Norrelag ;
+  }else if(rfidUid==OHLId ){
+    return OHL ;
+  }else if(rfidUid==PilgerId ){
+    return Pilger ;
+  }else if(rfidUid==ZKId ){
+    return Zusammenkunft ;
+  }else if(rfidUid==StadtId ){
+    return Stadt ;
+  }else if(rfidUid==LesathId ){
+    return Lesath ;
+  }else if(rfidUid==ThekiId ){
+    return Theki ;
+  }else{
+    return 17;
+  }
 }
 
-void SetLights(int ledNumber, int phase){
+void SetLights(int ledNumber){
   for(int i=30;i<=43;i++){
     digitalWrite(i,LOW);
   }
+
+  ledNumber+=30;
   digitalWrite(ledNumber,HIGH);
   delay(500);
 }
@@ -203,10 +380,16 @@ void PrintCurrentStatus(){
   Serial.print("Aktueller Besitzer: ");
   Serial.println(CurrentOwner);
   Serial.print("Zeit seit letztem Start: ");
-  Serial.print(millis()/1000 + 1);
+  Serial.print(millis()/1000);
   Serial.println(" Sekunden.");
   Serial.print("Gesamte Laufzeit: ");
-  Serial.print(CurrentTime);
+  Serial.print(CurrentTime+millis()/1000);
+  Serial.println(" Sekunden.");
+  Serial.print("Blocktime: ");
+  Serial.print(BlockTime);
+  Serial.println(" Sekunden.");
+  Serial.print("ActivationTime: ");
+  Serial.print(ActivationTime);
   Serial.println(" Sekunden.");
   Serial.println();
   HasPrintedStatusBool = true;
@@ -219,18 +402,6 @@ ISR(WDT_vect)
   Serial.println("------------------------------------------------------------");
 }
 
-void UpdateRuntime(){
-  TimeData=SD.open("data.txt", FILE_WRITE);
-  if(TimeData){
-    Serial.println("Write TimeData");
-    TimeData.println(millis());
-  }else{
-    Serial.println("Could not write TimeData");
-  }
-  TimeData.close();
-  delay(200);  
-}
-
 void SaveMomentData(){
   DataFile = SD.open("data.txt", FILE_WRITE);
   if(DataFile){
@@ -240,6 +411,10 @@ void SaveMomentData(){
     DataFile.println(CurrentOwner);
     DataFile.print('p');
     DataFile.println(CurrentPhase);
+    DataFile.print('b');
+    DataFile.println(BlockTime);
+    DataFile.print('a');
+    DataFile.println(ActivationTime);
     DataFile.close();
   }else{
     Serial.println("Error writing text");
@@ -248,7 +423,7 @@ void SaveMomentData(){
 }
 
 void ReadDataFile(){
-  CurrentTime=(int)millis()/1000;
+  CurrentTime=0;
   DataFile=SD.open("data.txt");
   int currentLongestTime = 0;
   int tempOwner;
@@ -263,33 +438,52 @@ void ReadDataFile(){
         inputarray[index]=readChar;
         index++;
       }else{
-        
         inputarray[index]='\0';
         int tempTime;
-        
-
         if(inputarray[0]=='t'){
           tempTime=atoi(&inputarray[1]);
-          if(tempTime>=currentLongestTime){
+          if(tempTime>=currentLongestTime){            
             currentLongestTime=(int)tempTime;
           }else{
             CurrentTime+=(int)currentLongestTime;
             currentLongestTime=(int)tempTime;
-          }
+          }         
         }else
         if(inputarray[0]=='o'){
           tempOwner=atoi(&inputarray[1]);
         }else
         if(inputarray[0]=='p'){
           tempPhase=atoi(&inputarray[1]);
-        }      
+        }else
+        if(inputarray[0]=='b'){
+          BlockTime=atoi(&inputarray[1]);
+        }else
+        if(inputarray[0]=='a'){
+          ActivationTime=atoi(&inputarray[1]);
+        }
         index=0;
       }
     }
+    CurrentTime+=(int)currentLongestTime+(int)millis()/1000;
     CurrentPhase=tempPhase;
-    SetNewOwner(tempOwner);
+    CurrentOwner=tempOwner;
+    SetLights(CurrentOwner);
   }else{
     Serial.println("Could not open data.txt");
   }
+}
+
+/**
+ * Helper routine to dump a byte array as hex values to Serial.
+ */
+void dump_byte_array(byte *buffer, byte bufferSize) {
+    for (byte i = 0; i < bufferSize; i++) {
+        Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+        Serial.print(buffer[i], HEX);
+    }
+}
+
+void CrossFade(){
+  
 }
 
